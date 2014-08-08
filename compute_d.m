@@ -1,4 +1,5 @@
-% compute the distance between the locations of 2 neurons
+% compute the distance between the locations of 2 neurons in a population
+% used for the convolutional based WTA implementation
 function y = compute_d(N, s)
     y = zeros(N, N);
     for idx = 1:N

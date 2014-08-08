@@ -1,230 +1,152 @@
 % simple implementation of unsupervised learning of relations network
+% the demo dataset contains the y = x^3 relation for x in [1, 10]
 
 % prepare environment
 clear all; clc; close all;
 
-%% INIT NETWORK
+%% INIT SIMULATION
 % enables dynamic visualization on network runtime
 DYN_VISUAL = 1;
+% verbose in standard output
+VERBOSE = 0;
 % number of populations in the network
 N_POP = 2;
 % number of neurons in each population
 N_NEURONS = 100;
 % max range value @ init for weights and activities in the population
-MAX_INIT_RANGE = 0.5 ;
+MAX_INIT_RANGE = 1;
 % WTA circuit settling threshold
-EPSILON = 1e-12;
-% type of input data real (sensory data) or generated
-REAL_DATA = 0;
-
-% constants in network dynamics
-
-% constants for WTA circuit
-GAMMA = 1; % scaling factor of weight update dynamics
-DELTA = 0.0; % decay term of weight update dyanamics
-SIGMA = 0.85; % standard deviation in the exponential update rule
-
-% constants for Hebbian linkage
-ALPHA_L = 0.5; % regulates the speed of connection learning
-ALPHA_D = 0.5; % weight decay factor ALPHA_D = ALPHA_L
-
-% constants for HAR
-C = 1; % scaling factor in homeostatic activity regulation
-A_TARGET = 0.8; % target activity for HAR
-OMEGA = 0.5;  % inverse time constant of averaging
-
-% constants for neural units in populations
-M = 1/(N_NEURONS/2); % slope in logistic function @ neuron level
-S = 0; % shift in logistic function @ neuron level
+EPSILON = 1e-5;
+% number of epochs to train the nework
+MAX_EPOCHS = 1000;
 
 %% INIT INPUT DATA
-if(REAL_DATA==1)
-    sensory_data = sensory_data_setup('robot_data_jras_paper', 'tracker_data_jras_paper');
-    % size of the input dataset
-    MAX_EPOCHS = length(sensory_data.timeunits);
-    STEP_SIZE = 10;
-else
-    sensory_data = load('artificial_algebraic_data.mat');
-    MAX_EPOCHS = length(sensory_data.x);
-    STEP_SIZE = 1;
-end
+sensory_data = load('artificial_algebraic_data.mat');
+DATASET_LEN = length(sensory_data.x);
+
 % epoch iterator (iterator through the input dataset)
 t = 1;
 % network iterator (iterator for a given input value)
-tau = 1;
+tau = 0;
+
+%% INIT NETWORK DYNAMICS
+% constants for WTA circuit (convolution based WTA)
+DELTA = -0.005; % displacement of the convolutional kernel (neighborhood)
+SIGMA = 5.0; % standard deviation in the exponential update rule
+SL = 4.5; % scaling factor of neighborhood kernel
+GAMMA = SL/(SIGMA*sqrt(2*pi)); % convolution scaling factor
+
+% constants for Hebbian linkage
+ALPHA_L = 1.0*1e-3; % Hebbian learning rate
+ALPHA_D = 1.0*1e-3; % Hebbian decay factor ALPHA_D > ALPHA_L
+
+% constants for HAR
+C = 6.0; % scaling factor in homeostatic activity regulation
+TARGET_VAL_ACT = 0.4; % amplitude target for HAR
+A_TARGET = TARGET_VAL_ACT*ones(N_NEURONS, 1); % HAR target activity vector
+omegat = zeros(MAX_EPOCHS, 1); % inverse time for activity averaging
+
+% constants for neural units in neural populations
+M = 1.0; % slope in logistic function @ neuron level
+S = 1.55; % shift in logistic function @ neuron level
 
 %% CREATE NETWORK AND INITIALIZE
-populations(1) = struct(  'idx', 1,...
-    'lsize', N_NEURONS, ...
-    'Wint', rand(N_NEURONS, N_NEURONS)*MAX_INIT_RANGE, ...
-    'Wext', rand(N_NEURONS, N_NEURONS)*MAX_INIT_RANGE, ...
-    'a', rand(N_NEURONS, 1)*MAX_INIT_RANGE,...
-    'h', zeros(N_NEURONS, 1));
-populations(2) = struct(  'idx', 2,...
-    'lsize', N_NEURONS, ...
-    'Wint', rand(N_NEURONS, N_NEURONS)*MAX_INIT_RANGE, ...
-    'Wext', rand(N_NEURONS, N_NEURONS)*MAX_INIT_RANGE, ...
-    'a', rand(N_NEURONS, 1)*MAX_INIT_RANGE,...
-    'h', zeros(N_NEURONS, 1));
+% create a network given the simulation constants
+populations = create_init_network(N_POP, N_NEURONS, GAMMA, SIGMA, DELTA, MAX_INIT_RANGE, TARGET_VAL_ACT);
 
-% changes in activity
-delta_a = zeros(N_POP, N_NEURONS);
-old_delta_a = zeros(N_POP, N_NEURONS);
-% running average of population activities
+% buffers for changes in activity in WTA loop
+delta_a = zeros(N_POP, N_NEURONS)*MAX_INIT_RANGE;
+old_delta_a = zeros(N_POP, N_NEURONS)*MAX_INIT_RANGE;
+% buffers for running average of population activities in HAR loop
 old_avg = zeros(N_POP, N_NEURONS);
 cur_avg = zeros(N_POP, N_NEURONS);
 
 %% NETWORK SIMULATION LOOP
-for t = 1:STEP_SIZE:MAX_EPOCHS
-    
-    % changes in activity
-    delta_a = zeros(N_POP, N_NEURONS);
-    old_delta_a = zeros(N_POP, N_NEURONS);
-    % running average of population activities
-    old_avg = zeros(N_POP, N_NEURONS);
-    cur_avg = zeros(N_POP, N_NEURONS);
-    
-    % pick a new sample from the dataset and feed it to the input
-    % population in the network (in this case in1 -> A -> | <- B <- in2)
-    if(REAL_DATA==1)
-        % first input is gyroscope data and the second odometry data
-        populations(1).a = population_encoder(sensory_data.heading.gyro(t)*pi/180, N_NEURONS);
-        populations(2).a = population_encoder(sensory_data.heading.odometry(t)*pi/180, N_NEURONS);
-    else
-        % first input is x = 1:100 and y = f(x), linear / nonlinear
-        populations(1).a = population_encoder(sensory_data.x(t), N_NEURONS);
-        populations(2).a = population_encoder(sensory_data.x(t)^3, N_NEURONS);
-    end
-    % normalize activity between [0,1]
-    populations(1).a = populations(1).a./sum(populations(1).a);
-    populations(2).a = populations(2).a./sum(populations(2).a);
-    
-    % visualize encoding process
-    if(DYN_VISUAL==1)
-        set(gcf, 'color', 'white');
-        % input
-        subplot(3,2,1);
-        acth1 = plot(populations(1).a, '-r', 'LineWidth', 2); box off;
-        xlabel('neuron index'); ylabel('activation in layer 1');
-        subplot(3,2,2);
-        acth2 = plot(populations(2).a, '-b','LineWidth', 2); box off;
-        xlabel('neuron index'); ylabel('activation in layer 2');
-        
-        % weights - internal (within population)
-        subplot(3,2,3);
-        vis_data1 = populations(1).Wint;
-        acth4 = pcolor(vis_data1);
-        box off; grid off; axis xy;
-        xlabel('layer 1 - neuron index'); ylabel('layer 1 - neuron index');
-        subplot(3,2,4);
-        vis_data2 = populations(2).Wint;
-        acth5 = pcolor(vis_data2);
-        box off; grid off; axis xy;
-        xlabel('layer 2 - neuron index'); ylabel('layer 2 - neuron index');
-        
-        % weights - between (between population)
-        subplot(3,2,5);
-        vis_data3 = populations(1).Wext;
-        acth6 = pcolor(vis_data1);
-        box off; grid off; axis xy;
-        xlabel('layer 1 - neuron index'); ylabel('layer 2 - neuron index');
-        subplot(3,2,6);
-        vis_data4 = populations(2).Wext;
-        acth7 = pcolor(vis_data2);
-        box off; grid off; axis xy;
-        xlabel('layer 2 - neuron index'); ylabel('layer 1 - neuron index');
-        
-        
-        % refresh visualization
-        set(acth1, 'YDataSource', 'populations(1).a');
-        set(acth2, 'YDataSource', 'populations(2).a');
-        set(acth4, 'CData', vis_data1);
-        set(acth5, 'CData', vis_data2);
-        set(acth6, 'CData', vis_data3);
-        set(acth7, 'CData', vis_data4);
-        refreshdata(acth1, 'caller');
-        refreshdata(acth2, 'caller');
-        refreshdata(acth4, 'caller');
-        refreshdata(acth5, 'caller');
-        refreshdata(acth6, 'caller');
-        refreshdata(acth7, 'caller');
-        drawnow;
-    end
-    
-    %------------------------------------------------------------------------------------------------
-    
-    
-    % given the input sample wait for WTA circuit to settle
+% present each entry in the dataset for MAX_EPOCHS epochs to train the net
+for didx = 1:DATASET_LEN
+    % present one sample and let the network converge
     while(1)
-        %-----------------------------------------------------------------------------------------------
         
-        % update the weights in the WTA circuits in each population
-        populations(1).Wint = GAMMA*compute_d(N_NEURONS, SIGMA) - DELTA;
-        populations(2).Wint = GAMMA*compute_d(N_NEURONS, SIGMA) - DELTA;
+        % pick a new sample from the dataset and feed it to the input
+        % population in the network (in this case in->A-> | <- B<- in)
+        populations(1).a = population_encoder(sensory_data.x(didx), max(sensory_data.x(:)),  N_NEURONS);
+        populations(2).a = population_encoder(sensory_data.y(didx), max(sensory_data.y(:)),  N_NEURONS);
         
-        % neural units update dynamics (activity)
-        delta_a(1, :) = (populations(1).h + ...
-            populations(1).Wint*populations(1).a + ...
-            populations(1).Wext*populations(2).a);
-        
-        delta_a(2, :) = (populations(2).h + ...
-            populations(2).Wint*populations(2).a + ...
-            populations(2).Wext*populations(1).a);
-        
-        populations(1).a = populations(1).a + 0.001*delta_a(1, :)';
-        populations(2).a = populations(2).a + 0.001*delta_a(2, :)';
-        
-        populations(1).a = compute_s(populations(1).a, M, S);
-        populations(2).a = compute_s(populations(2).a, M, S);
-        
-        delta_a
-        old_delta_a
-        % check if network has settled
-        if(sum((old_delta_a(1, :) - delta_a(1,:)).^2)<=EPSILON)
-            if(sum((old_delta_a(2, :) - delta_a(2,:)).^2)<=EPSILON)
-                fprintf('network has settled in %d iterations\n', tau);
+        % given the input sample wait for WTA circuit to settle
+        while(1)
+            % neural units activity update for each population
+            populations(1).a = compute_s(populations(1).h + ...
+                populations(1).Wint*populations(1).a + ...
+                populations(1).Wext*populations(2).a, M, S);
+            
+            populations(2).a = compute_s(populations(2).h + ...
+                populations(2).Wint*populations(2).a + ...
+                populations(2).Wext*populations(1).a, M, S);
+            
+            % current activation values for stop condition test
+            for pop_idx = 1:N_POP
+                delta_a(pop_idx, :) = populations(pop_idx).a;
+            end
+            
+            % check if activity has settled
+            if((sum(sum(abs(delta_a - old_delta_a)))/(N_POP*N_NEURONS))<EPSILON)
+                if VERBOSE==1
+                    fprintf('Network converged after %d iterations\n', tau);
+                end
                 tau = 0;
                 break;
             end
+            
+            % update history of activities
+            old_delta_a = delta_a;
+            % increment time step in WTA loop
+            tau = tau + 1;
+            
+        end  % WTA convergence loop
+        
+        % update Hebbian linkage between the populations (decaying Hebbian rule)
+        populations(1).Wext = (1-ALPHA_D)*populations(1).Wext + ...
+            ALPHA_L*populations(2).a*populations(1).a';
+        
+        populations(2).Wext = (1-ALPHA_D)*populations(2).Wext + ...
+            ALPHA_L*populations(1).a*populations(2).a';
+        
+        % compute the inverse time for exponential averaging of HAR activity
+        omegat(t) = 0.002 + 0.998/(t+2);
+        
+        % for each population in the network
+        for pop_idx = 1:N_POP
+            % perform inter-population Hebbian weight normalization
+            populations(pop_idx).Wext = populations(pop_idx).Wext./sum(populations(pop_idx).Wext(:));
+            
+            % update Homeostatic Activity Regulation terms
+            % compute exponential average of each population at current step
+            cur_avg(pop_idx, :) = (1-omegat(t))*old_avg(pop_idx, :) + omegat(t)*populations(pop_idx).a';
+            % update homeostatic activity terms given current and target act.
+            populations(pop_idx).h = -C*(cur_avg(pop_idx, :)' - A_TARGET);
         end
-        % update history
-        tau = tau + 1;
-        old_delta_a = delta_a;
-    end
+        
+        % update averging history
+        old_avg = cur_avg;
+        
+        % check criteria to stop learning on the current sample (TODO)
+        if(t == MAX_EPOCHS)
+            t = 1;
+            break;
+        end
+        
+        if VERBOSE==1
+            fprintf('Training epoch %d\n', t);
+        end
+        
+        % increment the training timestep
+        t = t + 1;
+        
+    end % end main relaxation loop for WTA, HL and HAR
     
-    % update Hebbian linkage
-    populations(1).Wext = (1-ALPHA_D)*populations(1).Wext + ...
-        ALPHA_L*populations(1).a*populations(2).a';
-    
-    populations(2).Wext = (1-ALPHA_D)*populations(2).Wext + ...
-        ALPHA_L*populations(2).a*populations(1).a';
-    
-    % update Homeostatic Activity Regulation terms
-    % compute running average of each population at current step t
-    cur_avg(1, :) = (1-OMEGA)*old_avg(1, :) + OMEGA*populations(1).a';
-    cur_avg(2, :) = (1-OMEGA)*old_avg(2, :) + OMEGA*populations(2).a';
-    
-    % update homeostatic activity terms
-    populations(1).h = -C*(cur_avg(1, :)' - A_TARGET*ones(N_NEURONS, 1));
-    populations(2).h = -C*(cur_avg(2, :)' - A_TARGET*ones(N_NEURONS, 1));
-    
-    % update averging history
-    old_avg = cur_avg;
-    fprintf('training epoch %d\n', t);
-end % end simulation for each sample in the input dataset
+end % end of all samples in the training dataset
 
-%% VISUALIZATION
-% weights after learning
-figure; set(gcf, 'color', 'white');
-subplot(1,2,1);
-pcolor(populations(1).Wext);
-box off; grid off; axis xy; xlabel('input layer'); ylabel('projection layer');
-subplot(1,2,2);
-pcolor(populations(2).Wext);
-box off; grid off; axis xy; xlabel('projection layer'); ylabel('input layer');
-
-
-
-
-
-
+% visualize runtime data 
+if(DYN_VISUAL==1)
+    visualize_runtime(populations, tau, t);
+end

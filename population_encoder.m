@@ -1,27 +1,15 @@
-%% Poisson Noisy Pattern of activity for Input Neurons
-%   This function generates a Poisson Noisy pattern of activity
-%   for each neuron in population as Initial tuning curve 
-%   Variables and Argument Description:
-%   x:      input analog value subjected to be encoded into ...
-%           ... activity pattern, dimension in (Radians)
-%   sig:    Defines the spread in radians (Rad)
-%   v:      spontaneous level of activity for each neuron (Hz)
-%   N:      number of neurons in the population
-%   C:      A factor in sec, shows the time duration in which the ...
-%           activity of neurons has been considered
-function R = population_encoder(x, N) % , sig, v, C)
-sig = 0.4;
-v = 1;
-C = 1;
-K = 20; % in Hz
-
-R = zeros(N, 1);     % Pattern of activity, or output tuning curve
-for j = 1:1:N
-    temp = cos( x - (2*pi*j/N) ) - 1 ;
-    % fj is the lamda value for poisson Neuron j
-    fj = C * (K*exp(temp / sig^2) + v); 
-    %R(j) = poissrnd(fj);
-    R(j) = fj;
+% function to generate the population encoded variable as input for the net
+% here we also need to encode variables which are in both +/- ranges
+% we need to take into accound the encoding for the tuning curves
+% distribution
+function R = population_encoder(x, range, N)
+sig = 0.1; % standard deviation 
+K = 1; % max firing rate (Hz) (ignore - not modeling nurophysiology here :)
+% pattern of activity, or output tuning curve between [-range, range]
+R = zeros(N, 1);
+% calculate output 
+for j = 1:N % for each neuron in the population
+    R(j) = K*exp( -(x - (-range+(j-1)*(range/((N-1)/2))))^2 / (2*sig^2));
 end
 
     
