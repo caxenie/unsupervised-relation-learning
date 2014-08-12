@@ -9,7 +9,7 @@ K = 1; % max firing rate (Hz) (ignore - not modeling nurophysiology here :)
 R = zeros(N, 1);
 % calculate output 
 for j = 1:N % for each neuron in the population
-    R(j) = K*exp( -(x - (-range+(j-1)*(range/((N-1)/2))))^2 / (2*sig^2));
+    R(j) = K*exp( -(x - (-range+(j)*(range/((N)/2))))^2 / (2*sig^2));
 end
 
     
