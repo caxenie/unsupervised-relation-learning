@@ -7,7 +7,8 @@ acth3 = plot(population_encoder(sensory_data.x(d), max(sensory_data.x(:)),  popu
 xlabel('neuron index'); ylabel('pc coded input in layer 1');
 subplot(3, 3, 2);
 acth4 = plot(population_encoder(sensory_data.y(d), max(sensory_data.y(:)),  populations(1).lsize), '--b', 'LineWidth', 2); box off;
-xlabel('neuron index'); ylabel('pc coded input in layer 2'); title(sprintf('Network dynamics: tau = %d (WTA) | t = %d (HL, HAR)', tau, t));
+xlabel('neuron index'); ylabel('pc coded input in layer 2'); 
+title(sprintf('Network dynamics: sample = %d |  tau = %d (WTA) | t = %d (HL, HAR)', d, tau, t));
 subplot(3, 3, 3);
 acth5 = plot(sensory_data.x(d), sensory_data.y(d), '*k'); hold on; plot(sensory_data.x, sensory_data.y, '-g'); box off;
 xlabel('X'); ylabel('Y');
@@ -39,9 +40,8 @@ set(acth5, 'XData', sensory_data.x(d));
 set(acth5, 'YData', sensory_data.y(d));
 set(acth6, 'YDataSource', 'populations(1).a'); 
 set(acth7, 'YDataSource','populations(2).a'); 
-set(acth8, 'CData', populations(1).Wint);
-set(acth9, 'CData', populations(1).Wext);
-set(acth10,'CData', populations(2).Wext);
-
+set(acth8, 'CData', populations(1).Wint); 
+set(acth9, 'CData', populations(1).Wext); 
+set(acth10,'CData', populations(2).Wext); caxis([0,1]); colorbar;
 drawnow;
 end

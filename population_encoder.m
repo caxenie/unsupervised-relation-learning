@@ -3,7 +3,7 @@
 % we need to take into accound the encoding for the tuning curves
 % distribution
 function R = population_encoder(x, range, N)
-sig = 0.1; % standard deviation 
+sig = 0.095; % standard deviation 
 K = 1; % max firing rate (Hz) (ignore - not modeling nurophysiology here :)
 % pattern of activity, or output tuning curve between [-range, range]
 R = zeros(N, 1);
