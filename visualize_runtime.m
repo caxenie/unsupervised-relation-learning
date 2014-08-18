@@ -22,20 +22,20 @@ xlabel('neuron index'); ylabel('activation in layer 2');
 hpc0 = subplot(3, 3, 6);
 ax0=get(hpc0,'position'); % Save the position as ax
 set(hpc0,'position',ax0); % Manually setting this holds the position with colorbar 
-acth8 = pcolor(populations(1).Wint); caxis([0, 1]); colorbar;
+acth8 = pcolor(populations(1).Wint); caxis([0, max(populations(1).Wint(:))]); colorbar;
 xlabel('neuron index'); ylabel('neurons index'); 
 
 % hebbian links between populations
 hpc1 = subplot(3, 3, 7);
 ax1=get(hpc1,'position'); % Save the position as ax
 set(hpc1,'position',ax1); % Manually setting this holds the position with colorbar 
-acth9 = pcolor(populations(1).Wext); caxis([0, 1]); colorbar;
+acth9 = pcolor(populations(1).Wext); caxis([0, max(populations(1).Wext(:))]); colorbar;
 box off; grid off;
 xlabel('layer 1 - neuron index'); ylabel('layer 2 - neuron index');
 hpc2 = subplot(3, 3, 8);
 ax2 =get(hpc2,'position'); % Save the position as ax
 set(hpc2,'position',ax2); % Manually setting this holds the position with colorbar 
-acth10= pcolor(populations(2).Wext); caxis([0, 1]); colorbar;
+acth10= pcolor(populations(2).Wext); caxis([0, max(populations(2).Wext(:))]); colorbar;
 box off; grid off;
 xlabel('layer 2 - neuron index'); ylabel('layer 1 - neuron index');
 
