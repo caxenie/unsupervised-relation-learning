@@ -9,15 +9,14 @@ close all; clear all; clc;
 % number of neurons in the population 
 N_NEURONS = 200;
 
-
 % standard deviation 
 SIGMA = 5.0;
 % scaling factor
-SL = 4.5;
+SL = 5.0; % original value 4.5
 % convolution scaling factor 
 GAMMA = SL/(SIGMA*sqrt(2*pi));
 % decay term 
-DELTA = -0.005;
+DELTA = -0.001; % original value -0.005
 
 % the weight matrix for lateral interconnectivity 
 W = rand(N_NEURONS, N_NEURONS);

@@ -17,34 +17,36 @@ MAX_INIT_RANGE = 1;
 EPSILON = 1e-3;
 % flag to select {epoch limit, performance limit} = {1, 0}
 STOP_CRITERIA = 1;
-MAX_EPOCHS = 2500;
+MAX_EPOCHS = 1;
 %% INIT INPUT DATA - RELATION IS EMBEDDED
-MIN_VAL = -1.0; MAX_VAL = 1.0;
-sensory_data.x = linspace(MIN_VAL, MAX_VAL, N_NEURONS);
-sensory_data.y = sensory_data.x.^3;
-DATASET_LEN = N_NEURONS;
+MIN_VAL = 0.0; MAX_VAL = 1.0;
+NUM_VALS = 10;
+sensory_data.x = rand(NUM_VALS, 1)*MAX_VAL;
+sensory_data.y = sensory_data.x.^2;
+DATASET_LEN = length(sensory_data.x);
 %% INIT NETWORK DYNAMICS
 % epoch iterator in outer loop (HL, HAR)
 t = 1;
 % network iterator in inner loop (WTA)
 tau = 1;
-% constants for WTA circuit (convolution based WTA)
+% constants for WTA circuit (convolution based WTA), this will provide a
+% profile peaked at 0.4
 DELTA = -0.005; % displacement of the convolutional kernel (neighborhood)
 SIGMA = 5.0; % standard deviation in the exponential update rule (10% of N_NEURONS are close to max activation)
 SL = 4.5; % scaling factor of neighborhood kernel
 GAMMA = SL/(SIGMA*sqrt(2*pi)); % convolution scaling factor
 % constants for Hebbian linkage
 ALPHA_L = 1.0*1e-3; % Hebbian learning rate
-ALPHA_D = 1.0*1e-3; % Hebbian decay factor ALPHA_D > ALPHA_L
+ALPHA_D = 1.0*1e-3; % Hebbian decay factor ALPHA_D >> ALPHA_L
 % constants for HAR
 C = 6.0; % scaling factor in homeostatic activity regulation
 TARGET_VAL_ACT = 0.4; % amplitude target for HAR
 A_TARGET = TARGET_VAL_ACT*ones(N_NEURONS, 1); % HAR target activity vector
 % constants for neural units in neural populations
 M = 1.0; % slope in logistic function @ neuron level
-S = 1.55; % shift in logistic function @ neuron level
+S = 1.0; % shift in logistic function @ neuron level
 % activity change weight (history vs. incoming knowledge)
-XI = 0.002;
+XI = 0.05;
 %% CREATE NETWORK AND INITIALIZE
 % create a network given the simulation constants
 populations = create_init_network(N_POP, N_NEURONS, GAMMA, SIGMA, DELTA, MAX_INIT_RANGE, TARGET_VAL_ACT);
@@ -66,21 +68,22 @@ qf = zeros(N_POP, 1);
 didx = 1;
 %% NETWORK SIMULATION LOOP
 % % present each entry in the dataset for MAX_EPOCHS epochs to train the net
-%for didx = 1:DATASET_LEN
+for didx = 1:DATASET_LEN
     % pick a new sample from the dataset and feed it to the input
-    % population in the network (in this case X->A-> | <- B<- Y)
+    % population in the network (in this case X -> A -> | <- B <- Y)
     X = population_encoder(sensory_data.x(didx), max(sensory_data.x(:)),  N_NEURONS);
     Y = population_encoder(sensory_data.y(didx), max(sensory_data.y(:)),  N_NEURONS);
     % normalize input such that the activity in all units sums to 1.0
     X = X./sum(X);
     Y = Y./sum(Y);
     
+    % clamp input to neural populations
+    populations(1).a = X;
+    populations(2).a = Y;
+    
     % present one sample and let the network converge (HL and HAR dynamics) for
     % a given number of MAX_EPOCHS epochs or criteria is fulfilled
     while(1)
-        % clamp input to neural populations
-        populations(1).a = X;
-        populations(2).a = Y;
         % given the input sample wait for WTA circuit to settle
         while(1)
             % for each neuron in first population
@@ -134,7 +137,6 @@ didx = 1;
                     fprintf('WTA converged after %d iterations\n', tau);
                 end
                 tau = 1;
-                old_act = zeros(N_NEURONS, N_POP)*MAX_INIT_RANGE;
                 break;
             end
             % update history of activities
@@ -146,7 +148,7 @@ didx = 1;
         % update Hebbian linkage between the populations (decaying Hebbian rule)
         % compute old sum of weights
         for pidx = 1:N_POP
-            oldWsum(pidx) = sum(populations(pidx).Wext(:));
+            oldWsum(pidx) = 1; %sum(populations(pidx).Wext(:));
         end
         
         for idx = 1:N_NEURONS
@@ -192,11 +194,9 @@ didx = 1;
         if(STOP_CRITERIA==1)
             if(t == MAX_EPOCHS)
                 if VERBOSE==1
-                    fprintf('Network converged after %d epochs\n', t);
+                    fprintf('Network after %d epochs\n', t);
                 end
                 t = 1;
-                % reset buffers for running average of population activities in HAR loop
-                old_avg = zeros(N_POP, 1);
                 break;
             end
         else
@@ -225,7 +225,7 @@ didx = 1;
             fprintf('HL and HAR dynamics at epoch %d \n', t);
         end
     end % end main relaxation loop for HL and HAR
-%end % end of all samples in the training dataset
+end % end of all samples in the training dataset
 
 % visualize runtime data
 % if(DYN_VISUAL==1)
