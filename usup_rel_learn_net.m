@@ -23,7 +23,7 @@ MAX_VAL         = 1.0;
 NUM_VALS        = 250;
 % generate NUM_VALS random samples in the given interval
 sensory_data.x  = MIN_VAL + rand(NUM_VALS, 1)*(MAX_VAL - MIN_VAL);
-sensory_data.y  = sensory_data.x.^2;
+sensory_data.y  = sensory_data.x.^3;
 DATASET_LEN     = length(sensory_data.x);
 %% INIT NETWORK DYNAMICS
 % epoch iterator in outer loop (HL, HAR)
@@ -76,40 +76,9 @@ for didx = 1:DATASET_LEN
     % given the input sample wait for WTA circuit to settle and then
     % perform a learning step of Hebbian learning and HAR
     while(1)
-        % for each neuron in first population
-        for idx = 1:N_NEURONS
-            % save the between populations contribution
-            ext_contrib = 0.0;
-            % save the within population contribution
-            int_contrib = 0.0;
-            for jdx = 1:N_NEURONS
-                % compute between populations contribution
-                ext_contrib = ext_contrib + populations(1).Wext(idx, jdx)*populations(2).a(jdx);
-                % compute the contribution within population
-                if(idx~=jdx)
-                    int_contrib = int_contrib + populations(1).Wint(idx, jdx)*populations(1).a(jdx);
-                end
-            end
-            % update the delta
-            delta_a1(idx) = compute_s(populations(1).h(idx) + ext_contrib + int_contrib, M, S);
-        end                    
-        % for each neuron in the second population
-        for idx = 1:N_NEURONS
-            % save the between populations contribution
-            ext_contrib = 0.0;
-            % save the within population contribution
-            int_contrib = 0.0;
-            for jdx = 1:N_NEURONS
-                % compute between populations contribution
-                ext_contrib = ext_contrib + populations(2).Wext(idx, jdx)*populations(1).a(jdx);
-                % compute the contribution within population
-                if(idx~=jdx)
-                    int_contrib = int_contrib + populations(2).Wint(idx, jdx)*populations(2).a(jdx);
-                end
-            end
-            % update the delta
-            delta_a2(idx) = compute_s(populations(2).h(idx) + ext_contrib + int_contrib, M, S);
-        end
+        % compute changes in activity
+        delta_a1 = compute_s(populations(1).h + populations(1).Wext*populations(2).a + populations(1).Wint*populations(1).a, M, S);
+        delta_a2 = compute_s(populations(2).h + populations(2).Wext*populations(1).a + populations(2).Wint*populations(2).a, M, S);
         % update the activities of each population
         populations(1).a = (1-ETA)*populations(1).a + ETA*delta_a1;
         populations(2).a = (1-ETA)*populations(2).a + ETA*delta_a2;
@@ -136,27 +105,17 @@ for didx = 1:DATASET_LEN
         end
     end  % WTA convergence loop
     % update Hebbian linkage between the populations (decaying Hebbian rule)
-    for idx = 1:N_NEURONS
-        for jdx = 1:N_NEURONS
-            % compute the changes in weights
-            populations(1).Wext(idx, jdx) = (1-ALPHA_D)*populations(1).Wext(idx, jdx) + ...
-                ALPHA_L*populations(1).a(idx)*populations(2).a(jdx);
-            
-            populations(2).Wext(idx, jdx) = (1-ALPHA_D)*populations(2).Wext(idx, jdx) + ...
-                ALPHA_L*populations(2).a(idx)*populations(1).a(jdx);
-        end
-    end
+    populations(1).Wext = (1-ALPHA_D)*populations(1).Wext + ALPHA_L*populations(1).a*populations(2).a';
+    populations(2).Wext = (1-ALPHA_D)*populations(2).Wext + ALPHA_L*populations(2).a*populations(1).a';
     % compute the inverse time for exponential averaging of HAR activity
     omegat = 0.002 + 0.998/(t+2);
     % for each population in the network
     for pop_idx = 1:N_POP
-        for idx = 1:N_NEURONS
             % update Homeostatic Activity Regulation terms
             % compute exponential average of each population at current step
-            cur_avg(pop_idx, idx) = (1-omegat)*old_avg(pop_idx, idx) + omegat*populations(pop_idx).a(idx);
+            cur_avg(pop_idx, :) = (1-omegat)*old_avg(pop_idx, :) + omegat*populations(pop_idx).a';
             % update homeostatic activity terms given current and target act.
-            populations(pop_idx).h(idx) = populations(pop_idx).h(idx) + C*(TARGET_VAL_ACT - cur_avg(pop_idx, idx));
-        end
+            populations(pop_idx).h = populations(pop_idx).h + C*(TARGET_VAL_ACT - cur_avg(pop_idx, :)');
     end
     % update averging history
     old_avg = cur_avg;
@@ -167,5 +126,5 @@ for didx = 1:DATASET_LEN
         fprintf('HL and HAR dynamics at iteration %d \n', t);
     end
 end % end of all samples in the training dataset
-% visualize post-runtime data
+% visualize post-simulation data
 visualize_runtime(sensory_data, populations, 1, t, DATASET_LEN);

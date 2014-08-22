@@ -12,7 +12,7 @@ if(d~=length(sensory_data.x) && tau~=1)
     title(sprintf('Network dynamics: sample = %d |  tau = %d (WTA) | t = %d (HL, HAR)', d, tau, t));
     subplot(3, 3, 3);
     acth5 = plot(sensory_data.x(d), sensory_data.y(d), 'ok', 'MarkerEdgeColor', 'k', 'MarkerSize', 10); hold on; plot(sensory_data.x, sensory_data.y, '.g'); box off;
-    xlabel('X'); ylabel('Y');
+    xlabel('X'); ylabel('Y'); title('Input data');
     
     subplot(3, 3, 4);
     acth6 = plot(populations(1).a, '-r', 'LineWidth', 2); box off;axis([0,  populations(1).lsize, 0, max(populations(1).a)]);
@@ -24,7 +24,7 @@ if(d~=length(sensory_data.x) && tau~=1)
     ax0=get(hpc0,'position'); % Save the position as ax
     set(hpc0,'position',ax0); % Manually setting this holds the position with colorbar
     acth8 = imagesc(populations(1).Wint); colorbar; set(gca,'XAxisLocation','top');
-    xlabel('neuron index'); ylabel('neurons index');
+    xlabel('neuron index'); ylabel('neurons index'); title('WTA weights');
     
     % hebbian links between populations
     hpc1 = subplot(3, 3, 7);
@@ -32,13 +32,13 @@ if(d~=length(sensory_data.x) && tau~=1)
     set(hpc1,'position',ax1); % Manually setting this holds the position with colorbar
     acth9 = imagesc(populations(1).Wext); caxis([0, max(populations(1).Wext(:))]); colorbar;
     box off; grid off;set(gca,'XAxisLocation','top');
-    xlabel('layer 1 - neuron index'); ylabel('layer 2 - neuron index');
+    xlabel('layer 1 - neuron index'); ylabel('layer 2 - neuron index'); title('HL weights 1->2');
     hpc2 = subplot(3, 3, 8);
     ax2 =get(hpc2,'position'); % Save the position as ax
     set(hpc2,'position',ax2); % Manually setting this holds the position with colorbar
     acth10= imagesc(populations(2).Wext); caxis([0, max(populations(2).Wext(:))]); colorbar;
     box off; grid off;set(gca,'XAxisLocation','top');
-    xlabel('layer 2 - neuron index'); ylabel('layer 1 - neuron index');
+    xlabel('layer 2 - neuron index'); ylabel('layer 1 - neuron index'); title('HL weights 2->1');
     
     % refresh visualization
     set(acth3, 'YData', population_encoder(sensory_data.x(d), max(sensory_data.x(:)),  populations(1).lsize));
